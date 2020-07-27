@@ -1,32 +1,35 @@
-import os
+import glob
+import gzip
 import io
+import os
+import pickle
+import platform
 import re
+import shutil
 import sys
 import time
-import gzip
-import glob
-import shutil
-import pickle
 import zipfile
-import requests
-import platform
 from csv import reader
-from pathlib import Path
 from datetime import datetime
+from distutils.version import StrictVersion
+from multiprocessing import freeze_support
+from pathlib import Path
+
+import requests
+from prompt_toolkit import HTML, PromptSession
+from prompt_toolkit.completion import NestedCompleter, WordCompleter
 from rich import box
-from rich.text import Text
+from rich.console import Console
+from rich.progress import BarColumn, Progress
 from rich.rule import Rule
 from rich.table import Table
-from rich.console import Console
-from rich.progress import Progress, BarColumn
+from rich.text import Text
 from rich.traceback import Traceback, install
-from multiprocessing import freeze_support
-from prompt_toolkit import PromptSession, HTML
-from prompt_toolkit.completion import WordCompleter, NestedCompleter
-from distutils.version import StrictVersion
+
 from CB import HEADERS, HEADLESS_TERMINAL_THEME, __version__
+from CB.Compat import (clear, getch, kbhit, pause, set_terminal_size,
+                       set_terminal_title, timeout)
 from CB.Core import Core
-from CB.Compat import pause, timeout, clear, set_terminal_title, set_terminal_size, getch, kbhit
 from CB.Wago import WagoUpdater
 
 if platform.system() == 'Windows':
@@ -296,7 +299,7 @@ class TUI:
             'force_update': WordCompleter(addons, ignore_case=True),
             'wago_update': None,
             'status': WordCompleter(addons, ignore_case=True),
-            'orphans': None,
+            'orphans': {'delete': None},
             'search': None,
             'import': {'install': None},
             'export': None,
@@ -457,14 +460,20 @@ class TUI:
     def c_status(self, args):
         self.c_update(args, False, False)
 
-    def c_orphans(self, _):
+    def c_orphans(self, args):
         orphansd, orphansf = self.core.find_orphans()
         self.console.print('[green]Directories that are not part of any installed addon:[/green]')
         for orphan in sorted(orphansd):
             self.console.print(orphan.replace('[GIT]', '[yellow][[GIT]][/yellow]'), highlight=False)
         self.console.print('\n[green]Files that are leftovers after no longer installed addons:[/green]')
         for orphan in sorted(orphansf):
-            self.console.print(orphan, highlight=False)
+            if args:
+                if args == "delete":
+                    path = os.environ.get('CURSEBREAKER_PATH')
+                    os.remove(f"{path}\\WTF\\{orphan}")
+                    self.console.print(f"Removed - {orphan}", highlight=False)
+            else:
+                self.console.print(orphan, highlight=False)
 
     def c_uri_integration(self, _):
         if self.os == 'Windows':
